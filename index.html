@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pocket Reading Duration</title>
+</head>
+<body>
+  <div id="connect" hidden>
+    <a id="connect-pocket-button" href="#">Connect with Pocket</a>
+  </div>
+  <div id="error" hidden>
+    
+  </div>
+  <div id="main" hidden>
+  </div>
+</body>
+<script src="http://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://parse.com/downloads/javascript/parse-1.6.2.min.js"></script>
+<script type="text/javascript">
+  $().ready(function(){
+    Parse.initialize('eoWbfxvoHXnNndonX3U46GPgXVMWUEeyTrvpQMAs','YrIwjJyWA54JgtR6ITtgmm3RduydMACr7RfRboJv');
+
+    $('#connect-pocket-button').click(function(e){
+      e.preventDefault();
+
+      Parse.Cloud.run('get_request_token', null, {
+        success: function(result){
+          request_token = result.replace('code=','');
+          sessionStorage.setItem('pocket_request_token',request_token);
+          window.location.href = 'https://getpocket.com/auth/authorize?request_token=' + request_token + '&redirect_uri=https://tibo.github.io/PocketWordcount/';
+        },
+        error: function(error) {
+          console.log(error);
+        }
+      });
+    });
+
+    function showResults(word_count){
+      var wpm = 200;
+
+      $('#main').append('You have ' + word_count + ' words to read <br />');
+      $('#main').append('With a reading speed of ' + wpm + ' word per minute that\s about ' + word_count/wpm + ' minutes')
+      if (word_count/wpm > 60) {
+       $('#main').append(' or ' + word_count/wpm/60 + ' hours');
+      }
+      if (word_count/wpm/60 > 24) {
+        $('#main').append(' or ' + word_count/wpm/60/24 + ' days');
+      }
+      $('#main').show();
+
+    }
+
+    pocket_request_token = sessionStorage.getItem('pocket_request_token');
+    pocket_access_token = sessionStorage.getItem('pocket_access_token');
+
+    if (pocket_access_token) {
+      Parse.Cloud.run('get_articles', {'access_token' : pocket_access_token}, {
+        success: function(result){
+          var json = JSON.parse(result);
+          var articles = json.list;
+          var keys = Object.keys(articles);
+          var word_count = 0;
+          keys.forEach(function(k){
+            word_count += parseInt(articles[k].word_count);
+          });
+        
+          showResults(word_count);
+        },
+        error: function(error) {
+          console.log(error);
+        }
+      });
+    }
+    else if (pocket_request_token) {
+      Parse.Cloud.run('get_access_token', {'code' : pocket_request_token}, {
+        success: function(result){
+          sessionStorage.removeItem('pocket_request_token');
+          result = result.substring(0,result.indexOf('&username='));
+          access_token = result.replace('access_token=','');
+          sessionStorage.setItem('pocket_access_token', access_token);
+        },
+        error: function(error) {
+          sessionStorage.clear();
+          console.log(error);
+        }
+      });
+    }
+    else {
+      $('#connect').show();
+    }
+  });
+</script>
+</html>
